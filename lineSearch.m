@@ -178,7 +178,7 @@ classdef lineSearch < handle
         
         if nargout > 1
           [phi, df] = fun(x+d*alpha);
-          dphi = df*d;
+          dphi = df'*d;
         else
           phi = fun(x+d*alpha);
         end
