@@ -1,4 +1,4 @@
-classdef lineSearch < handle
+classdef lineSearch
   
   properties(Constant)
     name = 'lineSearch';
@@ -110,7 +110,7 @@ classdef lineSearch < handle
       dUnit = this.d./dNorm;
           
       if ~isempty(this.f0) && ~isempty(this.df0)
-        dphi0 = this.df0*dUnit;
+        dphi0 = this.df0'*dUnit;
         phi0 = this.f0;
       else
         dphi0 = [];
@@ -188,6 +188,7 @@ classdef lineSearch < handle
   end
   
   methods(Static = true)
+  
     function [alphaU, alphaL, phiU, phiL, nFeval, exitflag, message, dsign] = bracket(phi,alpha0,f0,delta,varargin)
       % Help for bracket
       % This function brackets a local minimum for a 1D line search.
@@ -457,10 +458,10 @@ classdef lineSearch < handle
       nGrad = 1;
       exitflag = 0;
       
-      if (nargin < 5 || isempty(dphi0)) || (nargin < 4 || isempty(f0))
+      if isempty(dphi0) || isempty(f0)
         [f0,dphi0] = phi(0);
       end
-      
+
       % The algorim starts with a low value of alpha, and increases it until
       % convergence
       prevPhi = f0;
@@ -498,7 +499,6 @@ classdef lineSearch < handle
         prevPhi = curPhi;
         % Increase alpha until we reach the upper bound
         alpha = min(alpha*1.1,alphaU);
-        
         if ii >= options.MaxIterations
           message = sprintf('wolfe: Maximum number of allowed iterations reached: %i >= i%', ii,options.MaxIterations);
           exitflag = -1;
@@ -518,7 +518,6 @@ classdef lineSearch < handle
           [fval] = phi(alpha);
           break
         end
-        
       end
       
       function [alpha, fval, nFeval, nGrad, exitflag, message] = wolfeZoom(phi,alphaHi,alphaLo,phiHi,phiLo,f0,dphi0)
@@ -592,7 +591,7 @@ classdef lineSearch < handle
       
       nFeval = 0;
       nGrad = 0;
-      if (nargin < 4 || isempty(dphi0)) || (nargin < 3 || isempty(f0))
+      if isempty(dphi0) || isempty(f0)
         [f0,dphi0] = phi(0);
         nFeval = nFeval + 1;
         nGrad = nGrad + 1;
@@ -608,7 +607,7 @@ classdef lineSearch < handle
           phiAlpha = curPhi;
           break
         elseif nFeval >= options.MaxFunctionEvaluations
-          message = sprintf('backtracking: Maximum number of allowed function evaluations reached: %i >= i%', nFeval,options.MaxFunctionEvaluations);
+          message = sprintf('backtracking: Maximum number of allowed function evaluations reached: %i >= %i', nFeval,options.MaxFunctionEvaluations);
           exitflag = -1;
           alpha = inf;
           phiAlpha = inf;
@@ -619,7 +618,7 @@ classdef lineSearch < handle
           phiAlpha = curPhi;
           break
         else
-          alpha = alpha*0.25;
+          alpha = alpha*0.5;
         end
       end
     end
