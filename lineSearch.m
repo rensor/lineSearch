@@ -132,11 +132,11 @@ classdef lineSearch
           alpha0 = 0;
           stepIncrement = max(dNorm*1e-4,this.options.StepTolerance/2);
           [alphaU, alphaL, ~, ~, nf1, exitflag,message] = lineSearch.bracket(phiFun,alpha0,phi0,stepIncrement,...
-            'Display',this.options.Display,'MaxFunctionEvaluations',this.options.MaxFunctionEvaluations,'StepTolerance',this.options.StepTolerance);
+            'Display',this.options.Display,'MaxFunctionEvaluations',this.options.MaxFunctionEvaluations);
           % If the bracket function worked
           if exitflag > 0
             [alpha,fval,nf2,nGradEval,exitflag,message] = lineSearch.wolfe(phiFun,alphaL,alphaU,phi0,dphi0,...
-              'c1',this.options.c1,'c2',this.options.c2,'Display',this.options.Display,'MaxFunctionEvaluations',this.options.MaxFunctionEvaluations,'StepTolerance',this.options.StepTolerance);
+              'c1',this.options.c1,'c2',this.options.c2,'Display',this.options.Display,'MaxFunctionEvaluations',this.options.MaxFunctionEvaluations,'StepTolerance',this.options.StepTolerance,'FunctionTolerance',this.options.FunctionTolerance);
             if exitflag > 0
               xout = this.x0 + dUnit*alpha; % New point
             end
@@ -147,11 +147,11 @@ classdef lineSearch
           alpha0 = 0;
           stepIncrement = max(dNorm*1e-4,this.options.StepTolerance/2);
           [alphaU, alphaL, ~, ~, nf1, exitflag,message] = lineSearch.bracket(phiFun,alpha0,phi0,stepIncrement,...
-            'Display',this.options.Display,'MaxFunctionEvaluations',this.options.MaxFunctionEvaluations,'StepTolerance',this.options.StepTolerance);
+            'Display',this.options.Display,'MaxFunctionEvaluations',this.options.MaxFunctionEvaluations);
           % If the bracket function worked
           if exitflag > 0
             [alpha,fval,nf2,exitflag,message] = lineSearch.goldenSection(phiFun,alphaL,alphaU,...
-              'Display',this.options.Display,'MaxFunctionEvaluations',this.options.MaxFunctionEvaluations,'StepTolerance',this.options.StepTolerance);
+              'Display',this.options.Display,'MaxFunctionEvaluations',this.options.MaxFunctionEvaluations,'StepTolerance',this.options.StepTolerance,'FunctionTolerance',this.options.FunctionTolerance);
             if exitflag > 0
               xout = this.x0 + dUnit*alpha; % New point
             end
@@ -235,7 +235,6 @@ classdef lineSearch
       % Set parameters;
       p.addParameter('Display','off',  @(x) checkEmpetyOrChar(x));
       p.addParameter('MaxFunctionEvaluations',1000,  @(x) checkEmptyOrNumericPositive(x));
-      p.addParameter('StepTolerance',1e-10,  @(x) checkEmptyOrNumericPositive(x));
       p.addParameter('directionSwitch',false,  @(x) islogical(x));
 
       parse(p,varargin{:});
@@ -399,7 +398,7 @@ classdef lineSearch
       
     end
     
-    function [alpha,fval,nFeval,nGrad,exitflag,message]= wolfe(phi,alphaL,alphaU,f0,dphi0,varargin)
+    function [alpha,fval,nFeval,nGrad,exitflag,message]= wolfe(phi,alphaL,alphaU,phi0,dphi0,varargin)
       % Help for wolfe
       % This function determine a local minimum for a 1D linesearch problem.
       % Problem is formulated as: phi(alpha) = fun(x+alpha*d), where the goal is to
@@ -421,6 +420,7 @@ classdef lineSearch
       %         MaxIterations: integer > 0,(default=1000), maximum allowed iteration by the algorithm
       %         MaxFunctionEvaluations: integer > 0,(default=1000), maximum allowed function evaluations before termination of algorithm. 
       %         StepTolerance: scalar > 0,(default=1e-10), algorithm terminates if "distance" between lower and upper bound is below threashold. 
+      %         FunctionTolerance: scalar > 1 (default=1e-6), algorithm terminates if the difference in objective value between two sucessive iterations is below threashold%         FunctionTolerance: scalar > 1 (default=1e-6), algorithm terminates if the difference in objective value between two sucessive iterations is below threashold
       %         c1: scalar < 1, (default=1e-4), parameter used in the strong wolfe convergence criteria
       %         c2: scalar > c1 < 1 , (default=0.1), parameter used in the strong wolfe convergence criteria
       %
@@ -446,6 +446,7 @@ classdef lineSearch
       p.addParameter('MaxIterations',1000,  @(x) checkEmptyOrNumericPositive(x));
       p.addParameter('MaxFunctionEvaluations',1000,  @(x) checkEmptyOrNumericPositive(x));
       p.addParameter('StepTolerance',1e-10,  @(x) checkEmptyOrNumericPositive(x));
+      p.addParameter('FunctionTolerance',1e-6,  @(x) checkEmptyOrNumericPositive(x));
       p.addParameter('c1',1e-4,  @(x) checkEmptyOrNumericPositive(x));
       p.addParameter('c2',0.1,  @(x) checkEmptyOrNumericPositive(x));
       parse(p,varargin{:});
@@ -459,68 +460,78 @@ classdef lineSearch
       exitflag = 0;
       
       if isempty(dphi0) || isempty(f0)
-        [f0,dphi0] = phi(0);
+        [phi0,dphi0] = phi(0);
       end
 
       % The algorim starts with a low value of alpha, and increases it until
       % convergence
-      prevPhi = f0;
       alpha = alphaL;
-      % alpha > prevAlpha
+      % alpha > alpha_m1
+      
+      % Initialize previous values
+      alpha_m1 = 0;
+      phi_m1 = phi0;
+      dphi_m1 = dphi0;
       
       ii = 0;
       while true
         ii = ii + 1;
         nFeval = nFeval + 1;
-        [curPhi] = phi(alpha);
-        if ii > 1 && ( (curPhi > f0 + c1*alpha*dphi0) || (curPhi >= prevPhi) )
-          [alpha,fval,nFevalZ,nGradZ,exitflag,message] = wolfeZoom(phi,prevAlpha,alpha,prevPhi,curPhi,f0,dphi0);
+        nGrad = nGrad + 1;
+        [curPhi,curDphi] = phi(alpha);
+        if (curPhi > phi0 + c1*alpha*dphi0) || (ii > 1) && (curPhi >= phi_m1)
+          [alpha,fval,nFevalZ,nGradZ,exitflag,message] = wolfeZoom(phi,alpha_m1,alpha,phi_m1,curPhi,phi0,dphi0);
           nFeval = nFeval + nFevalZ;
           nGrad = nGrad + nGradZ;
-          break
+          return
         else
-          nFeval = nFeval + 1;
-          nGrad = nGrad + 1;
-          [curPhi,curDphi] = phi(alpha);
           if abs(curDphi) <= -c2*dphi0
             fval = curDphi;
             exitflag = 1;
             message = sprintf('wolfe: Sucessfully determine optimum step size based on gradient requirement.\n abs(dphi/dalpha) <= -c2*dphi0 \n %0.5e <= %0.5e',abs(curDphi),-c2*dphi0);
-            break
+            return
           elseif ii > 1 && curDphi >=0
-            [alpha,fval,nFevalZ,nGradZ,exitflag,message] = wolfeZoom(phi,alpha,prevAlpha,curPhi,prevPhi,f0,dphi0);
+            [alpha,fval,nFevalZ,nGradZ,exitflag,message] = wolfeZoom(phi,alpha,alpha_m1,curPhi,phi_m1,phi0,dphi0);
             nFeval = nFeval + nFevalZ;
             nGrad = nGrad + nGradZ;
-            break
+            return
           end
         end
         
-        prevAlpha = alpha;
-        prevPhi = curPhi;
-        % Increase alpha until we reach the upper bound
-        alpha = min(alpha*1.1,alphaU);
         if ii >= options.MaxIterations
           message = sprintf('wolfe: Maximum number of allowed iterations reached: %i >= i%', ii,options.MaxIterations);
           exitflag = -1;
           alpha = inf;
           fval = inf;
-          break
+          return
         elseif alpha <= options.StepTolerance
           message = sprintf('wolfe: Step size tolerance reached, alpha=%0.5e <= %0.5e',alpha,options.StepTolerance);
           exitflag = 1;
           nFeval = nFeval + 1;
           fval = phi(alpha);
-          break
+          return
         elseif alpha == alphaU
           exitflag = -2;
           message = sprintf('wolfe: Step size reached upper bound, check bounds.\n alpha=alphaU \n %0.5e=%0.5e',alpha,alphaU);
           nFeval = nFeval + 1;
           [fval] = phi(alpha);
-          break
+          return
+        elseif abs(phi_m1-curPhi) <= options.FunctionTolerance
+          message = sprintf('wolfe: Function Tolerance reached, f(alpha_(i-1))-f(alpha_i)%0.5e <= %0.5e',abs(phi_m1-curPhi),options.FunctionTolerance);
+          exitflag = 1;
+          fval = curPhi;
+          return
         end
+        
+        % update previous values
+        alpha_m1 = alpha;
+        phi_m1 = curPhi;
+        % Set new alpha
+        alpha = alpha+(alphaU-alpha)*0.1;
+             
       end
       
-      function [alpha, fval, nFeval, nGrad, exitflag, message] = wolfeZoom(phi,alphaHi,alphaLo,phiHi,phiLo,f0,dphi0)
+      function [alpha, fval, nFeval, nGrad, exitflag, message] = wolfeZoom(phi,alphaHi,alphaLo,phiHi,phiLo,phi0,dphi0)
         % Helper function for the wolfe algorithm. 
         % Based on the text book: Numerical Optimization by Nocedal and Wright, second edition, page 61, algorithm 3.6
         jj = 0;
@@ -536,7 +547,7 @@ classdef lineSearch
           phij = phi(alphaj);
           nFeval = nFeval + 1;
           jj = jj + 1;
-          if phij > f0+c1*alphaj*dphi0 || phij >= phiLo
+          if phij > phi0+c1*alphaj*dphi0 || phij >= phiLo
             alphaHi = alphaj;
             phiHi = phij;
           else
@@ -547,7 +558,7 @@ classdef lineSearch
               alpha = alphaj;
               exitflag = 1;
               message = sprintf('wolfe.wolfeZoom: Sucessfully determine optimum step size based on gradient requirement.\n abs(dphi/dalpha) <= -c2*dphi0 \n %0.5e <= %0.5e',abs(dphij),-c2*dphi0);
-              break
+              return
             elseif dphij*(phiHi-phiLo) >= 0
               alphaHi = alphaLo;
               phiHi = phiLo;
@@ -559,15 +570,20 @@ classdef lineSearch
           if jj >= options.MaxIterations 
             exitflag = -1;
             message = sprintf('wolfe.wolfeZoom: Exceeded maximum number of iterations %i',options.MaxIterations);
-            alpha = inf;
-            fval = inf;
-            break
+            alpha = alphaj;
+            fval = phij;
+            return
           elseif alphaj <= options.StepTolerance
             exitflag = 1;
             message = sprintf('wolfe.wolfeZoom: Step size tolerance reached, alpha=%0.5e <= %0.5e',alphaj,options.StepTolerance);
             alpha = alphaj;
             fval = phij;
-            break
+            return
+          elseif abs(phiHi-phiLo) <= options.FunctionTolerance 
+            message = sprintf('wolfe.wolfeZoom: Function Tolerance reached, f(alphaU))-f(alphaL)%0.5e <= %0.5e',abs(phiHi-phiLo),options.FunctionTolerance);
+            exitflag = 1;
+            fval = curPhi;
+            return
           end
         end
       end
@@ -605,21 +621,20 @@ classdef lineSearch
           exitflag = 1;
           message = sprintf('backtracking: Sucessfully determine step size based on the Armijo-Goldstein condition');
           phiAlpha = curPhi;
-          break
+          return
         elseif nFeval >= options.MaxFunctionEvaluations
           message = sprintf('backtracking: Maximum number of allowed function evaluations reached: %i >= %i', nFeval,options.MaxFunctionEvaluations);
           exitflag = -1;
-          alpha = inf;
-          phiAlpha = inf;
-          break
+          alpha = alpha;
+          phiAlpha = curPhi;
+          return
         elseif alpha <= options.StepTolerance
           exitflag = 1;
           message = sprintf('backtracking: Step size tolerance reached, alpha=%0.5e <= %0.5e',alpha,options.StepTolerance);
           phiAlpha = curPhi;
-          break
-        else
-          alpha = alpha*0.5;
+          return
         end
+        alpha = alpha*0.5;
       end
     end
     
@@ -633,7 +648,7 @@ classdef lineSearch
       p.addParameter('Display','off',  @(x) checkEmpetyOrChar(x));
       p.addParameter('MaxFunctionEvaluations',1000,  @(x) checkEmptyOrNumericPositive(x));
       p.addParameter('StepTolerance',1e-10,  @(x) checkEmptyOrNumericPositive(x));
-      
+      p.addParameter('FunctionTolerance',1e-6,  @(x) checkEmptyOrNumericPositive(x));
       parse(p,varargin{:});
       options = p.Results;
       
@@ -644,7 +659,7 @@ classdef lineSearch
       
       % Set function evaluation counter
       nFeval = 0;
-        
+      funcTol = false;
       % Interval reduction
       h = alphaU-alphaL;
       
@@ -690,6 +705,10 @@ classdef lineSearch
           nFeval = nFeval + 1;
           yd = phi(d);
         end
+        if abs(yc-yd) <= options.FunctionTolerance
+          funcTol = true;
+          break
+        end
       end
       
       if yc < yd
@@ -703,12 +722,16 @@ classdef lineSearch
       % Evaluate final point
       nFeval = nFeval + 1;
       [phiAlpha] = phi(alpha);
-      exitflag = 1;
-      message = sprintf('goldenSection: Step size tolerance reached, (alphaU-alphaL) = %0.3e <= %0.3e',alphaU-alphaL,options.StepTolerance);
+      if funcTol
+        exitflag = 1;
+        message = sprintf('goldenSection: Function tolerance reached, f(alphaU)-f(alphaL) %0.3e <= %0.3e',abs(yc-yd),options.FunctionTolerance);
+      else
+        exitflag = 1;
+        message = sprintf('goldenSection: Step size tolerance reached, (alphaU-alphaL) = %0.3e <= %0.3e',alphaU-alphaL,options.StepTolerance);
+      end
     end
     
   end
-  
   
   methods(Static = true, Hidden = true)
     % options initialization
@@ -725,6 +748,7 @@ classdef lineSearch
       p.addParameter('MaxGradientEvaluations',1000,  @(x) checkEmptyOrNumericPositive(x));
       p.addParameter('MaxFunctionEvaluations',1000,  @(x) checkEmptyOrNumericPositive(x));
       p.addParameter('StepTolerance',1e-10,  @(x) checkEmptyOrNumericPositive(x));
+      p.addParameter('FunctionTolerance',1e-6,  @(x) checkEmptyOrNumericPositive(x));
       p.addParameter('c1',1e-4,  @(x) checkEmptyOrNumericPositive(x));
       p.addParameter('c2',0.1,  @(x) checkEmptyOrNumericPositive(x));
       
