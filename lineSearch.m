@@ -1,4 +1,4 @@
-classdef lineSearch
+classdef lineSearch < handle
   
   properties(Constant)
     name = 'lineSearch';
@@ -6,6 +6,8 @@ classdef lineSearch
 
   properties
     options = [];
+    nFeval = 0;
+    nGradEval = 0;
   end
   
   properties(SetAccess = public, Hidden = true)
@@ -20,7 +22,7 @@ classdef lineSearch
     method = [];
     f0 = [];
     df0 = [];
-    
+    nDV = [];
   end
   
   methods
@@ -36,7 +38,7 @@ classdef lineSearch
       end
       
       if nargin < 2 || isempty(x0)
-        this.x0 = [];
+        error([this.name,': Initial point x0 is required'])
       else
         if isnumeric(x0)
           this.x0 = x0(:);
@@ -84,6 +86,13 @@ classdef lineSearch
           error([this.name,': Initial gradient value, df0, is required to be of type numeric'])
         end
       end
+      
+      if numel(this.d)==numel(this.x0)
+        this.nDV = numel(this.x0);
+      else
+        error([this.name,': Initial point x0, and direction vector d, does not have the same number of elements'])
+      end
+      
       % initialize options structure
       this.options = lineSearch.setOptions(varargin);
       
@@ -92,18 +101,15 @@ classdef lineSearch
     end
     
     %% LineSearch algorithm
-    function [xout,fval,stepSize,relStepSize,nFeval,nGradEval,exitflag,message] = solve(this)
+    function [xout,fval,stepSize,relStepSize,nFevalOut,nGradEvalOut,exitflag,message] = solve(this)
       
       if ~this.initialized
         error([this.name,': Please run construct to initialize data structures'])
       end
       
       % Initialize variables
-      nGradEval = 0;
       alpha = inf;
       fval = inf;
-      nf1 = 0;
-      nf2 = 0;
       xout = [];
       % calculate norm of step
       dNorm = norm(this.d);
@@ -118,7 +124,7 @@ classdef lineSearch
       end
       
       % Define linesearch function
-      phiFun = @(alpha) lineSearchObj(this.fun,this.x0,dUnit,alpha);
+      phiFun = @(alpha) this.lineSearchObj(this.x0,dUnit,alpha);
       
       switch this.method
         case 'none'
@@ -131,11 +137,11 @@ classdef lineSearch
           % bracket linesearch function
           alpha0 = 0;
           stepIncrement = max(dNorm*1e-4,this.options.StepTolerance/2);
-          [alphaU, alphaL, ~, ~, nf1, exitflag,message] = lineSearch.bracket(phiFun,alpha0,phi0,stepIncrement,...
+          [alphaU, alphaL, ~, ~, ~, exitflag,message] = lineSearch.bracket(phiFun,alpha0,phi0,stepIncrement,...
             'Display',this.options.Display,'MaxFunctionEvaluations',this.options.MaxFunctionEvaluations);
           % If the bracket function worked
           if exitflag > 0
-            [alpha,fval,nf2,nGradEval,exitflag,message] = lineSearch.wolfe(phiFun,alphaL,alphaU,phi0,dphi0,...
+            [alpha,fval,~,~,exitflag,message] = lineSearch.wolfe(phiFun,alphaL,alphaU,phi0,dphi0,...
               'c1',this.options.c1,'c2',this.options.c2,'Display',this.options.Display,'MaxFunctionEvaluations',this.options.MaxFunctionEvaluations,'StepTolerance',this.options.StepTolerance,'FunctionTolerance',this.options.FunctionTolerance);
             if exitflag > 0
               xout = this.x0 + dUnit*alpha; % New point
@@ -146,11 +152,11 @@ classdef lineSearch
           % bracket linesearch function
           alpha0 = 0;
           stepIncrement = max(dNorm*1e-4,this.options.StepTolerance/2);
-          [alphaU, alphaL, ~, ~, nf1, exitflag,message] = lineSearch.bracket(phiFun,alpha0,phi0,stepIncrement,...
+          [alphaU, alphaL, ~, ~, ~, exitflag,message] = lineSearch.bracket(phiFun,alpha0,phi0,stepIncrement,...
             'Display',this.options.Display,'MaxFunctionEvaluations',this.options.MaxFunctionEvaluations);
           % If the bracket function worked
           if exitflag > 0
-            [alpha,fval,nf2,exitflag,message] = lineSearch.goldenSection(phiFun,alphaL,alphaU,...
+            [alpha,fval,~,exitflag,message] = lineSearch.goldenSection(phiFun,alphaL,alphaU,...
               'Display',this.options.Display,'MaxFunctionEvaluations',this.options.MaxFunctionEvaluations,'StepTolerance',this.options.StepTolerance,'FunctionTolerance',this.options.FunctionTolerance);
             if exitflag > 0
               xout = this.x0 + dUnit*alpha; % New point
@@ -160,7 +166,7 @@ classdef lineSearch
         case 'backtrack'
           % Set upper bound for alpha
           alphaU = dNorm*2;
-          [alpha,fval,nf2,nGradEval,exitflag,message] = lineSearch.backtracking(phiFun,alphaU,phi0,dphi0,...
+          [alpha,fval,~,~,exitflag,message] = lineSearch.backtracking(phiFun,alphaU,phi0,dphi0,...
              'Display',this.options.Display,'MaxFunctionEvaluations',this.options.MaxFunctionEvaluations,'StepTolerance',this.options.StepTolerance);
            if exitflag > 0
             xout = this.x0 + dUnit*alpha; % New point
@@ -170,21 +176,89 @@ classdef lineSearch
           message = sprintf('lineSearch: Unknown algorithm, %s',this.method);
       end
       
-      nFeval = nf1 + nf2;
       relStepSize = alpha;
       stepSize = dNorm*relStepSize;
-      
-      function [phi,dphi] = lineSearchObj(fun,x,d,alpha)
+      nFevalOut = this.nFeval;
+      nGradEvalOut = this.nGradEval;
+    end % solve function
+    
+    % LineSearch function, used for evaluation of the 1D problem
+    function [phi,dphi] = lineSearchObj(this,x,d,alpha)
         
-        if nargout > 1
-          [phi, df] = fun(x+d*alpha);
-          dphi = df'*d;
-        else
-          phi = fun(x+d*alpha);
-        end
+      if nargout > 1
+        [phi, df] = this.getObj(x+d*alpha);
+        dphi = df'*d;
+      else
+        phi = this.getObj(x+d*alpha);
       end
-      
     end
+      
+    % Function evaluation of the input function. 
+    % Here, we also have the option for evaluation gradients if the linesearch algorim requires it.
+    % The gradients can be either user specified or approximated by finite difference
+    function [fval,df] = getObj(this,x)
+      
+      if nargout > 1
+        this.nGradEval = this.nGradEval + 1;
+        if this.options.SpecifyObjectiveGradient
+          [fval,df] = this.fun(x);
+        else
+          fval = this.fun(x);
+          [df] = this.getFunDSA(x,fval);
+        end
+      else
+        fval = this.fun(x);
+      end
+      this.nFeval = this.nFeval + 1;
+    end
+    
+    % Finite difference approximation of user defined input function.
+    function [df] = getFunDSA(this,x,fin)
+      df = zeros(this.nDV,1);
+      h = this.options.FiniteDifferenceStepSize;
+      switch this.options.FiniteDifferenceType
+        case 'forward'
+          if nargin < 3 || ~isempty(fin)
+            fin = this.fun(x);
+            this.nFeval = this.nFeval + 1;
+          end
+          for dvNo = 1:this.nDV
+            xin = x(dvNo);
+            x(dvNo) = xin+h;
+            p1 = this.fun(x);
+            df(dvNo) = (p1-fin)/(h);
+            x(dvNo) = xin;
+            this.nFeval = this.nFeval + 1;
+          end
+        case 'backward'
+          if nargin < 3 || ~isempty(fin)
+            fin = this.fun(x);
+            this.nFeval = this.nFeval + 1;
+          end
+          for dvNo = 1:this.nDV
+            xin = x(dvNo);
+            x(dvNo) = xin-h;
+            m1 = this.fun(x);
+            df(dvNo) = (fin-m1)/(h);
+            x(dvNo) = xin;
+            this.nFeval = this.nFeval + 1;
+          end
+        case 'central'
+          for dvNo = 1:this.nDV
+            xin = x(dvNo);
+            x(dvNo) = xin+h;
+            p1 = this.fun(x);
+            x(dvNo) = xin-h;
+            m1 = this.fun(x);
+            df(dvNo) = (p1-m1)/(2*h);
+            x(dvNo) = xin;
+            this.nFeval = this.nFeval + 2;
+          end
+        otherwise
+          error([this.name,': Unknown FiniteDifferenceType'])
+      end
+    end
+    
   end
   
   methods(Static = true)
@@ -745,10 +819,16 @@ classdef lineSearch
 
       % Set parameters;
       p.addParameter('Display','off',  @(x) checkEmpetyOrChar(x));
+      % DSA parameters
+      p.addParameter('FiniteDifferenceStepSize',1e-3,  @(x) checkEmptyOrNumericPositive(x));
+      p.addParameter('FiniteDifferenceType','forward',  @(x) checkEmpetyOrChar(x));
+      p.addParameter('SpecifyObjectiveGradient',false,  @(x) islogical(x));
+      % Convergence parameters
       p.addParameter('MaxGradientEvaluations',1000,  @(x) checkEmptyOrNumericPositive(x));
       p.addParameter('MaxFunctionEvaluations',1000,  @(x) checkEmptyOrNumericPositive(x));
       p.addParameter('StepTolerance',1e-10,  @(x) checkEmptyOrNumericPositive(x));
       p.addParameter('FunctionTolerance',1e-6,  @(x) checkEmptyOrNumericPositive(x));
+      % Specialized settings
       p.addParameter('c1',1e-4,  @(x) checkEmptyOrNumericPositive(x));
       p.addParameter('c2',0.1,  @(x) checkEmptyOrNumericPositive(x));
       
