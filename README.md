@@ -1,7 +1,7 @@
 # lineSearch
 Line-Search algorithm
 
-Performe 1D line-search analysis to determine optimum step length. 
+Perform 1D line-search analysis to determine optimum step length. 
 
 Contains the follwing functionallity
   1. Bracket local minimum i.e., determine upper and lower bounds of step-size
