@@ -2,6 +2,7 @@ classdef lineSearch < handle
   
   properties(Constant)
     name = 'lineSearch';
+    version = 'v1.0';
   end
 
   properties
@@ -533,7 +534,7 @@ classdef lineSearch < handle
       nGrad = 1;
       exitflag = 0;
       
-      if isempty(dphi0) || isempty(f0)
+      if isempty(dphi0) || isempty(phi0)
         [phi0,dphi0] = phi(0);
       end
 
@@ -545,7 +546,6 @@ classdef lineSearch < handle
       % Initialize previous values
       alpha_m1 = 0;
       phi_m1 = phi0;
-      dphi_m1 = dphi0;
       
       ii = 0;
       while true
@@ -699,7 +699,6 @@ classdef lineSearch < handle
         elseif nFeval >= options.MaxFunctionEvaluations
           message = sprintf('backtracking: Maximum number of allowed function evaluations reached: %i >= %i', nFeval,options.MaxFunctionEvaluations);
           exitflag = -1;
-          alpha = alpha;
           phiAlpha = curPhi;
           return
         elseif alpha <= options.StepTolerance
