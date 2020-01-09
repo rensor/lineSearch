@@ -2,7 +2,7 @@ classdef lineSearch < handle
   
   properties(Constant)
     name = 'lineSearch';
-    version = 'v1.0';
+    version = 'v1.1';
   end
 
   properties
@@ -166,12 +166,17 @@ classdef lineSearch < handle
           
         case 'backtrack'
           % Set upper bound for alpha
-          alphaU = dNorm*2;
-          [alpha,fval,~,~,exitflag,message] = lineSearch.backtracking(phiFun,alphaU,phi0,dphi0,...
+          alpha0 = 0;
+          stepIncrement = max(dNorm*1e-4,this.options.StepTolerance/2);
+          [alphaU, alphaL, ~, ~, ~, exitflag,message] = lineSearch.bracket(phiFun,alpha0,phi0,stepIncrement,...
+            'Display',this.options.Display,'MaxFunctionEvaluations',this.options.MaxFunctionEvaluations);
+          if exitflag > 0
+            [alpha,fval,~,~,exitflag,message] = lineSearch.backtracking(phiFun,alphaU,phi0,dphi0,...
              'Display',this.options.Display,'MaxFunctionEvaluations',this.options.MaxFunctionEvaluations,'StepTolerance',this.options.StepTolerance);
-           if exitflag > 0
-            xout = this.x0 + dUnit*alpha; % New point
-           end
+            if exitflag > 0
+              xout = this.x0 + dUnit*alpha; % New point
+            end
+          end
         otherwise
           exitflag = -3;
           message = sprintf('lineSearch: Unknown algorithm, %s',this.method);
@@ -830,6 +835,7 @@ classdef lineSearch < handle
       % Specialized settings
       p.addParameter('c1',1e-4,  @(x) checkEmptyOrNumericPositive(x));
       p.addParameter('c2',0.1,  @(x) checkEmptyOrNumericPositive(x));
+      
       
       % pars input
       if nargin < 1 || isempty(input)
