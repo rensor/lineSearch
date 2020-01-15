@@ -139,14 +139,20 @@ classdef lineSearch < handle
           alpha0 = 0;
           stepIncrement = max(dNorm*1e-4,this.options.StepTolerance/2);
           [alphaU, alphaL, ~, ~, ~, exitflag,message] = lineSearch.bracket(phiFun,alpha0,phi0,stepIncrement,...
-            'Display',this.options.Display,'MaxFunctionEvaluations',this.options.MaxFunctionEvaluations);
+            'Display',this.options.Display,'MaxFunctionEvaluations',this.options.MaxFunctionEvaluations,'directionSwitch',this.options.directionSwitch);
           % If the bracket function worked
           if exitflag > 0
-            [alpha,fval,~,~,exitflag,message] = lineSearch.wolfe(phiFun,alphaL,alphaU,phi0,dphi0,...
+            if exitflag == 2
+              dUnit = -dUnit;
+              dphi0 = -dphi0;
+              phiFun = @(alpha) this.lineSearchObj(this.x0,dUnit,alpha);
+            end
+            [alpha,fval,~,~,exitflag,message_1] = lineSearch.wolfe(phiFun,alphaL,alphaU,phi0,dphi0,...
               'c1',this.options.c1,'c2',this.options.c2,'Display',this.options.Display,'MaxFunctionEvaluations',this.options.MaxFunctionEvaluations,'StepTolerance',this.options.StepTolerance,'FunctionTolerance',this.options.FunctionTolerance);
             if exitflag > 0
               xout = this.x0 + dUnit*alpha; % New point
             end
+            message = sprintf('%s \n %s',message,message_1);
           end
           
         case 'golden'
@@ -154,14 +160,19 @@ classdef lineSearch < handle
           alpha0 = 0;
           stepIncrement = max(dNorm*1e-4,this.options.StepTolerance/2);
           [alphaU, alphaL, ~, ~, ~, exitflag,message] = lineSearch.bracket(phiFun,alpha0,phi0,stepIncrement,...
-            'Display',this.options.Display,'MaxFunctionEvaluations',this.options.MaxFunctionEvaluations);
+            'Display',this.options.Display,'MaxFunctionEvaluations',this.options.MaxFunctionEvaluations,'directionSwitch',this.options.directionSwitch);
           % If the bracket function worked
           if exitflag > 0
-            [alpha,fval,~,exitflag,message] = lineSearch.goldenSection(phiFun,alphaL,alphaU,...
+            if exitflag == 2
+              dUnit = -dUnit;
+              phiFun = @(alpha) this.lineSearchObj(this.x0,dUnit,alpha);
+            end
+            [alpha,fval,~,exitflag,message_1] = lineSearch.goldenSection(phiFun,alphaL,alphaU,...
               'Display',this.options.Display,'MaxFunctionEvaluations',this.options.MaxFunctionEvaluations,'StepTolerance',this.options.StepTolerance,'FunctionTolerance',this.options.FunctionTolerance);
             if exitflag > 0
               xout = this.x0 + dUnit*alpha; % New point
             end
+            message = sprintf('%s \n %s',message,message_1);
           end
           
         case 'backtrack'
@@ -169,13 +180,19 @@ classdef lineSearch < handle
           alpha0 = 0;
           stepIncrement = max(dNorm*1e-4,this.options.StepTolerance/2);
           [alphaU, alphaL, ~, ~, ~, exitflag,message] = lineSearch.bracket(phiFun,alpha0,phi0,stepIncrement,...
-            'Display',this.options.Display,'MaxFunctionEvaluations',this.options.MaxFunctionEvaluations);
+            'Display',this.options.Display,'MaxFunctionEvaluations',this.options.MaxFunctionEvaluations,'directionSwitch',this.options.directionSwitch);
           if exitflag > 0
-            [alpha,fval,~,~,exitflag,message] = lineSearch.backtracking(phiFun,alphaU,phi0,dphi0,...
-             'Display',this.options.Display,'MaxFunctionEvaluations',this.options.MaxFunctionEvaluations,'StepTolerance',this.options.StepTolerance);
+            if exitflag == 2
+              dUnit = -dUnit;
+              dphi0 = -dphi0;
+              phiFun = @(alpha) this.lineSearchObj(this.x0,dUnit,alpha);
+            end
+            [alpha,fval,~,~,exitflag,message_1] = lineSearch.backtracking(phiFun,alphaU,phi0,dphi0,...
+             'Display',this.options.Display,'MaxFunctionEvaluations',this.options.MaxFunctionEvaluations,'StepTolerance',this.options.StepTolerance,'c2',this.options.c2);
             if exitflag > 0
               xout = this.x0 + dUnit*alpha; % New point
             end
+            message = sprintf('%s \n %s',message,message_1);
           end
         otherwise
           exitflag = -3;
@@ -384,14 +401,14 @@ classdef lineSearch < handle
           if options.directionSwitch
             if dSwitchUsed
               exitflag = 2;
-              message = sprintf('MathUtilities.bracket: \n Direction switch used, Sucessfully bracket');
+              message = sprintf('bracket: Direction switch used, Sucessfully bracket');
             else
               exitflag = 1;
-              message = sprintf('MathUtilities.bracket: \n Sucessfully bracket');
+              message = sprintf('bracket: Sucessfully bracket');
             end
           else
             exitflag = 1;
-            message = sprintf('MathUtilities.bracket: \n Sucessfully bracket');
+            message = sprintf('bracket: Sucessfully bracket');
           end
           % Exit while loop
           break
@@ -429,25 +446,25 @@ classdef lineSearch < handle
               if jj == 10
                 if options.directionSwitch
                   if ~dSwitchUsed
-                    delta = deltaInit;
+                    delta = deltaInit*10;
                     dSwitchUsed = true;
                     dsign = -1;
                     jj = 0;
                   else
                     exitflag = -2;
-                    message = sprintf('MathUtilities.bracket: \n Applied decent direction seems wrong, tried to switch direction, did not help');
+                    message = sprintf('bracket: Applied decent direction seems wrong, tried to switch direction, did not help');
                     return
                   end
                 else
                   exitflag = -1;
-                  message = sprintf('MathUtilities.bracket: \n Applied decent direction seems wrong, \n check supplied decent direction, initial alpha, and delta values');
+                  message = sprintf('bracket: Applied decent direction seems wrong, \n check supplied decent direction, initial alpha, and delta values');
                   return
                 end
               end
                 
               if nFeval >= options.MaxFunctionEvaluations 
                 exitflag = -1;
-                message = sprintf('MathUtilities.bracket: \n unable to determine delta parameter, this indicates the either the applied decent direction is wrong, \ n or the supplied function (phi) is faulty');
+                message = sprintf('bracket: Unable to determine delta parameter, this indicates the either the applied decent direction is wrong, \ n or the supplied function (phi) is faulty');
                 break
               end
             end
@@ -459,7 +476,7 @@ classdef lineSearch < handle
           end
         end
         if nFeval >= options.MaxFunctionEvaluations 
-          message = sprintf('MathUtilities.bracket: \n Maximum number of allowed function iterations reached: %i >= %i',nFeval,options.MaxFunctionEvaluations );
+          message = sprintf('bracket: Maximum number of allowed function iterations reached: %i >= %i',nFeval,options.MaxFunctionEvaluations );
           exitflag = -1;
           break
         end
@@ -467,14 +484,6 @@ classdef lineSearch < handle
       
       phiU = curPhi;
       phiL = prevPrevPhi;
-        
-      if dSwitchUsed
-        phiU = prevPrevPhi;
-        phiL = curPhi;
-        temp = alphaL;
-        alphaL = alphaU;
-        alphaU = temp;
-      end
       
     end
     
@@ -528,7 +537,7 @@ classdef lineSearch < handle
       p.addParameter('StepTolerance',1e-10,  @(x) checkEmptyOrNumericPositive(x));
       p.addParameter('FunctionTolerance',1e-6,  @(x) checkEmptyOrNumericPositive(x));
       p.addParameter('c1',1e-4,  @(x) checkEmptyOrNumericPositive(x));
-      p.addParameter('c2',0.1,  @(x) checkEmptyOrNumericPositive(x));
+      p.addParameter('c2',0.2,  @(x) checkEmptyOrNumericPositive(x));
       parse(p,varargin{:});
       
       options = p.Results;
@@ -596,7 +605,7 @@ classdef lineSearch < handle
           [fval] = phi(alpha);
           return
         elseif abs(phi_m1-curPhi) <= options.FunctionTolerance
-          message = sprintf('wolfe: Function Tolerance reached, f(alpha_(i-1))-f(alpha_i)%0.5e <= %0.5e',abs(phi_m1-curPhi),options.FunctionTolerance);
+          message = sprintf('wolfe: Function Tolerance reached, f(alpha_(i-1))-f(alpha_i) %0.5e <= %0.5e',abs(phi_m1-curPhi),options.FunctionTolerance);
           exitflag = 1;
           fval = curPhi;
           return
@@ -659,16 +668,17 @@ classdef lineSearch < handle
             fval = phij;
             return
           elseif abs(phiHi-phiLo) <= options.FunctionTolerance 
-            message = sprintf('wolfe.wolfeZoom: Function Tolerance reached, f(alphaU))-f(alphaL)%0.5e <= %0.5e',abs(phiHi-phiLo),options.FunctionTolerance);
+            message = sprintf('wolfe.wolfeZoom: Function Tolerance reached, f(alphaU))-f(alphaL) %0.5e <= %0.5e',abs(phiHi-phiLo),options.FunctionTolerance);
             exitflag = 1;
             fval = curPhi;
+            alpha = alphaj;
             return
           end
         end
       end
     end
     
-    function [alpha,phiAlpha,nFeval,nGrad,exitflag,message] = backtracking(phi,alphaU,f0,dphi0,varargin)
+    function [alpha,phiAlpha,nFeval,nGrad,exitflag,message] = backtracking(phi,alphaU,phi0,dphi0,varargin)
       p = inputParser;
       p.CaseSensitive = false;
       % Helper functions for input parser
@@ -679,24 +689,26 @@ classdef lineSearch < handle
       p.addParameter('MaxIterations',1000,  @(x) checkEmptyOrNumericPositive(x));
       p.addParameter('MaxFunctionEvaluations',1000,  @(x) checkEmptyOrNumericPositive(x));
       p.addParameter('StepTolerance',1e-10,  @(x) checkEmptyOrNumericPositive(x));
-      p.addParameter('c1',1e-4,  @(x) checkEmptyOrNumericPositive(x));
+      p.addParameter('c2',0.2,  @(x) checkEmptyOrNumericPositive(x));
       parse(p,varargin{:});
       
       options = p.Results;
       
+      reductionFactor = 0.9;
       nFeval = 0;
       nGrad = 0;
-      if isempty(dphi0) || isempty(f0)
-        [f0,dphi0] = phi(0);
+      if isempty(dphi0) || isempty(phi0)
+        [phi0,dphi0] = phi(0);
         nFeval = nFeval + 1;
         nGrad = nGrad + 1;
       end
       
+      prevPhi = phi0;
       alpha = alphaU;
       while true
         curPhi = phi(alpha);
         nFeval = nFeval + 1;
-        if curPhi <= f0 + options.c1*alpha*dphi0
+        if curPhi <= phi0 + options.c2*alpha*dphi0
           exitflag = 1;
           message = sprintf('backtracking: Sucessfully determine step size based on the Armijo-Goldstein condition');
           phiAlpha = curPhi;
@@ -711,8 +723,16 @@ classdef lineSearch < handle
           message = sprintf('backtracking: Step size tolerance reached, alpha=%0.5e <= %0.5e',alpha,options.StepTolerance);
           phiAlpha = curPhi;
           return
+        elseif prevPhi < curPhi
+          alpha = (alpha*1/reductionFactor);
+          exitflag = 1;
+          message = sprintf('backtracking: Function started to increase with reduced step size');
+          phiAlpha = curPhi;
+          return
         end
-        alpha = alpha*0.5;
+        
+        prevPhi = curPhi;
+        alpha = alpha*reductionFactor;
       end
     end
     
@@ -834,8 +854,8 @@ classdef lineSearch < handle
       p.addParameter('FunctionTolerance',1e-6,  @(x) checkEmptyOrNumericPositive(x));
       % Specialized settings
       p.addParameter('c1',1e-4,  @(x) checkEmptyOrNumericPositive(x));
-      p.addParameter('c2',0.1,  @(x) checkEmptyOrNumericPositive(x));
-      
+      p.addParameter('c2',0.2,  @(x) checkEmptyOrNumericPositive(x));
+      p.addParameter('directionSwitch',false,  @(x) islogical(x));
       
       % pars input
       if nargin < 1 || isempty(input)
