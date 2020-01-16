@@ -131,6 +131,7 @@ classdef lineSearch < handle
         case 'none'
           alpha = 1;
           exitflag = 1;
+          exitflag_l = 1;
           message = 'lineSearch: Unit step applied';
           xout = this.x0 + this.d; % New point
           
@@ -147,9 +148,9 @@ classdef lineSearch < handle
               dphi0 = -dphi0;
               phiFun = @(alpha) this.lineSearchObj(this.x0,dUnit,alpha);
             end
-            [alpha,fval,~,~,exitflag,message_1] = lineSearch.wolfe(phiFun,alphaL,alphaU,phi0,dphi0,...
+            [alpha,fval,~,~,exitflag_l,message_1] = lineSearch.wolfe(phiFun,alphaL,alphaU,phi0,dphi0,...
               'c1',this.options.c1,'c2',this.options.c2,'Display',this.options.Display,'MaxFunctionEvaluations',this.options.MaxFunctionEvaluations,'StepTolerance',this.options.StepTolerance,'FunctionTolerance',this.options.FunctionTolerance);
-            if exitflag > 0
+            if exitflag_l > 0
               xout = this.x0 + dUnit*alpha; % New point
             end
             message = sprintf('%s \n %s',message,message_1);
@@ -167,9 +168,9 @@ classdef lineSearch < handle
               dUnit = -dUnit;
               phiFun = @(alpha) this.lineSearchObj(this.x0,dUnit,alpha);
             end
-            [alpha,fval,~,exitflag,message_1] = lineSearch.goldenSection(phiFun,alphaL,alphaU,...
+            [alpha,fval,~,exitflag_l,message_1] = lineSearch.goldenSection(phiFun,alphaL,alphaU,...
               'Display',this.options.Display,'MaxFunctionEvaluations',this.options.MaxFunctionEvaluations,'StepTolerance',this.options.StepTolerance,'FunctionTolerance',this.options.FunctionTolerance);
-            if exitflag > 0
+            if exitflag_l > 0
               xout = this.x0 + dUnit*alpha; % New point
             end
             message = sprintf('%s \n %s',message,message_1);
@@ -187,9 +188,9 @@ classdef lineSearch < handle
               dphi0 = -dphi0;
               phiFun = @(alpha) this.lineSearchObj(this.x0,dUnit,alpha);
             end
-            [alpha,fval,~,~,exitflag,message_1] = lineSearch.backtracking(phiFun,alphaU,phi0,dphi0,...
+            [alpha,fval,~,~,exitflag_l,message_1] = lineSearch.backtracking(phiFun,alphaU,phi0,dphi0,...
              'Display',this.options.Display,'MaxFunctionEvaluations',this.options.MaxFunctionEvaluations,'StepTolerance',this.options.StepTolerance,'c2',this.options.c2);
-            if exitflag > 0
+            if exitflag_l > 0
               xout = this.x0 + dUnit*alpha; % New point
             end
             message = sprintf('%s \n %s',message,message_1);
@@ -198,7 +199,7 @@ classdef lineSearch < handle
           exitflag = -3;
           message = sprintf('lineSearch: Unknown algorithm, %s',this.method);
       end
-      
+      exitflag = exitflag*exitflag_l;
       relStepSize = alpha;
       stepSize = dNorm*relStepSize;
       nFevalOut = this.nFeval;
