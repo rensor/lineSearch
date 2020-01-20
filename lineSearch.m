@@ -2,7 +2,7 @@ classdef lineSearch < handle
   
   properties(Constant)
     name = 'lineSearch';
-    version = 'v1.1';
+    version = 'v1.2';
   end
 
   properties
@@ -30,6 +30,48 @@ classdef lineSearch < handle
     
     % Construct
     function this = lineSearch(fun,x0,d,method,f0,df0,varargin)
+      % Help for lineSearch
+      % Inputs
+      %   - fun : function handle for multi-variable objective function
+      %   - x0  : Vector containing the initial point in the design space
+      %   - d   : Vector containing the search direction which minimized the objective function
+      %   - method(string)  : - none: x = x0 + d
+      %                     : - wolfe: line search method which satisfies the strong
+      %                         wolfe conditions. Based on the method outline in 
+      %                         Numerical Optimization by Nocedal and Wright, 
+      %                         second edition, page 60, algorithm 3.5
+      %                       - golden: Golden Sections method
+      %                       - backtrack: Simple backtracking method. One of the convergence
+      %                         criteria is the Armijo-Goldstein condition
+      % optional inputs
+      %   - f0  : objective function value at x0
+      %   - df0 : gradient of objective function at x0
+      %
+      % Options
+      %
+      % Convergence parameters
+      %   - MaxGradientEvaluations  : Integer > 0, default 1000
+      %   - MaxFunctionEvaluations  : Integer > 0, default 1000
+      %   - StepTolerance           : numeric > 0, default 1e-10 
+      %   - FunctionTolerance       : numeric > 0, default 1e-6 
+      %
+      % DSA parameters, used by wolf and backtrack methods
+      %   - FiniteDifferenceStepSize : numeric > 0, default sqrt(eps)
+      %   - FiniteDifferenceType : string, default 'forward'
+      %   - SpecifyObjectiveGradient : logical, default false
+      %
+      % Specialized settings
+      %   - c1 : numeric > 0, default 1e-4, used by wolfe method to check if
+      %                       current iteration is a decent direction
+      %   - c2 : numeric > 0, default 0.2, reduction requirement.
+      %                       wolfe: stop if norm of gradient has reduced by c2
+      %                       compared to initial value
+      %                       backtrack: stop if function value has reduced by c2
+      %                       compared to initial value
+      %   - directionSwitch : logical, default false. Allows the bracket
+      %   algorithm to change sign on search direction
+      
+      
       
       % initialize data structures
       if nargin < 1 || ~isa(fun,'function_handle')
@@ -112,6 +154,7 @@ classdef lineSearch < handle
       alpha = inf;
       fval = inf;
       xout = [];
+      exitflag_l = 0;
       % calculate norm of step
       dNorm = norm(this.d);
       dUnit = this.d./dNorm;
@@ -199,7 +242,11 @@ classdef lineSearch < handle
           exitflag = -3;
           message = sprintf('lineSearch: Unknown algorithm, %s',this.method);
       end
-      exitflag = exitflag*exitflag_l;
+      
+      % Select the worst exitflag
+      exitflag = min(exitflag,exitflag_l);
+      
+      % Set output values
       relStepSize = alpha;
       stepSize = dNorm*relStepSize;
       nFevalOut = this.nFeval;
@@ -512,7 +559,7 @@ classdef lineSearch < handle
       %         StepTolerance: scalar > 0,(default=1e-10), algorithm terminates if "distance" between lower and upper bound is below threashold. 
       %         FunctionTolerance: scalar > 1 (default=1e-6), algorithm terminates if the difference in objective value between two sucessive iterations is below threashold%         FunctionTolerance: scalar > 1 (default=1e-6), algorithm terminates if the difference in objective value between two sucessive iterations is below threashold
       %         c1: scalar < 1, (default=1e-4), parameter used in the strong wolfe convergence criteria
-      %         c2: scalar > c1 < 1 , (default=0.1), parameter used in the strong wolfe convergence criteria
+      %         c2: scalar > c1 < 1 , (default=0.2), parameter used in the strong wolfe convergence criteria
       %
       % Outputs:
       %         alpha   : Optimum step size which satisfies the Strong Wolfe Conditions
@@ -845,7 +892,7 @@ classdef lineSearch < handle
       % Set parameters;
       p.addParameter('Display','off',  @(x) checkEmpetyOrChar(x));
       % DSA parameters
-      p.addParameter('FiniteDifferenceStepSize',1e-3,  @(x) checkEmptyOrNumericPositive(x));
+      p.addParameter('FiniteDifferenceStepSize',sqrt(eps),  @(x) checkEmptyOrNumericPositive(x));
       p.addParameter('FiniteDifferenceType','forward',  @(x) checkEmpetyOrChar(x));
       p.addParameter('SpecifyObjectiveGradient',false,  @(x) islogical(x));
       % Convergence parameters
