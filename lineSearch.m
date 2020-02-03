@@ -438,7 +438,7 @@ classdef lineSearch < handle
         if prevPhi <= curPhi && kk > 0
           % Success, problem has been bracked/bound
           alphaU = alpha;
-          if kk > 1
+          if kk > 0
             alphaL = alpha - delta*(1.618)^kk - delta*(1.618)^(kk-1);
           else
             alphaL = alpha;
@@ -716,7 +716,7 @@ classdef lineSearch < handle
             fval = phij;
             return
           elseif abs(phiHi-phiLo) <= options.FunctionTolerance 
-            message = sprintf('wolfe.wolfeZoom: Function Tolerance reached, f(alphaU))-f(alphaL) %0.5e <= %0.5e',abs(phiHi-phiLo),options.FunctionTolerance);
+            message = sprintf('wolfe.wolfeZoom: Function Tolerance reached, f(alphaU)-f(alphaL) %0.5e <= %0.5e',abs(phiHi-phiLo),options.FunctionTolerance);
             exitflag = 1;
             fval = curPhi;
             alpha = alphaj;
@@ -814,7 +814,7 @@ classdef lineSearch < handle
         nFeval = nFeval + 1;
         [phiAlpha] = phi(alpha);
         exitflag = 1;
-        message = sprintf('goldenSection: Initial upper and lower bounds within step size tolerance, alpha=%0.5e <= %0.5e',alpha,options.StepTolerance);
+        message = sprintf('goldenSection: Initial upper and lower bounds within step size tolerance, alphaU-alphaL=%0.5e <= %0.5e',h,options.StepTolerance);
         return
       end
       
