@@ -289,7 +289,8 @@ classdef lineSearch < handle
       h = this.options.FiniteDifferenceStepSize;
       switch this.options.FiniteDifferenceType
         case 'forward'
-          if nargin < 3 || ~isempty(fin)
+          % Compute initial function value if not supplied
+          if nargin < 3 || isempty(fin)
             fin = this.fun(x);
             this.nFeval = this.nFeval + 1;
           end
@@ -302,7 +303,8 @@ classdef lineSearch < handle
             this.nFeval = this.nFeval + 1;
           end
         case 'backward'
-          if nargin < 3 || ~isempty(fin)
+          % Compute initial function value if not supplied
+          if nargin < 3 || isempty(fin)
             fin = this.fun(x);
             this.nFeval = this.nFeval + 1;
           end
